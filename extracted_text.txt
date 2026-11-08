@@ -1,0 +1,1167 @@
+Chapter 3
+Private-Key Encryption
+In the previous chapter we saw some fundamental limitations of perfect se-
+crecy. In this chapter we begin our study of modern cryptography by intro-
+ducing the weaker (but sufficient) notion of computational secrecy. We then
+show how this definition can be used to bypass the impossibility results shown
+previously for perfect secrecy and, in particular, how a short key (say, 128 bits
+long) can be used to encrypt many long messages (say, gigabytes in total).
+Along the way we will study the fundamental notion of pseudorandomness,
+which captures the idea that something can “look” completely random even
+though it is not. This powerful concept underlies much of modern cryptogra-
+phy, and has applications and implications beyond the field as well.
+3.1 Computational Security
+In Chapter 2 we introduced the notion of perfect secrecy. While perfect
+secrecy is a worthwhile goal, it is also unnecessarily strong. Perfect secrecy
+requires that absolutely no information about an encrypted message is leaked,
+even to an eavesdropper with unlimited computational power. For all practical
+purposes, however, an encryption scheme would still be considered secure if it
+leaked information with some tiny probability to eavesdroppers with bounded
+computational power. For example, a scheme that leaks information with
+probability at most 2−60 to eavesdroppers investing up to 200 years of com-
+putational effort on the fastest available supercomputer (or cluster of comput-
+ers) would be more than adequate for real-world applications. Computational
+security definitions take into account computational limits on an attacker, and
+allow for a small probability that security is violated, in contrast to notions
+(such as perfect secrecy) that are information-theoretic in nature. Computa-
+tional security is now the de facto way in which security is defined for almost
+all cryptographic applications.
+We stress that although we give up on obtaining perfect secrecy, this does
+not mean we do away with the rigorous mathematical approach we have been
+taking so far. Definitions and proofs are still essential; the only difference is
+that we now consider a weaker (but still meaningful) notion of security.
+43
+44 Introduction to Modern Cryptography
+As discussed, computational security definitions incorporate two relaxations
+relative to information-theoretic notions of security:
+1. Security is only guaranteed against efficient adversaries that run for
+some feasible amount of time. This means that given enough time (or
+sufficient computational resources) an attacker may be able to violate
+security. If we can make the resources required to break the scheme
+larger than those available to any realistic attacker, however, then for
+all practical purposes the scheme is unbreakable.
+2. Adversaries can potentially succeed (i.e., security can potentially fail)
+with some very small probability . If we can make this probability
+sufficiently small, we need not worry about it.
+(As we will see, both these relaxations are necessary in order to overcome
+the limitations of perfect secrecy shown in the last chapter.) To obtain a
+meaningful theory, we need to precisely define what we mean by the above
+relaxations. There are two general approaches for doing so: the concrete
+approach and the asymptotic approach. These are described next.
+3.1.1 The Concrete Approach
+The concrete approach to computational security quantifies the security of
+a cryptographic scheme by explicitly bounding the maximum success proba-
+bility of a (randomized) adversary running for some specified amount of time
+or, more precisely, investing some specified amount of computational effort.
+Thus, a concrete definition of security takes the following form:
+A scheme is (t, ε)-secure if any adversary running for time at
+most t succeeds in breaking the scheme with probability at most ε.
+(Of course, the above serves only as a general template, and for it to make
+sense we need to define exactly what it means to “break” the scheme in ques-
+tion.) As an example, one might have a scheme with the guarantee that no
+adversary running for at most 200 years using the fastest available supercom-
+puter can succeed in breaking the scheme with probability better than 2−60.
+Or, it may be more convenient to measure running time in terms of CPU
+cycles, and to construct a scheme such that no adversary using at most 280
+cycles can break the scheme with probability better than 2−60.
+It is instructive to get a feel for the large values of t and the small values
+of ε that are typical of modern cryptosystems.
+Example 3.1
+Modern private-key encryption schemes are generally assumed to give almost
+optimal security in the following sense: when the key has length n—and so
+the key space has size 2n—an adversary running for time t (measured in, say,
+Private-Key Encryption 45
+CPU cycles) succeeds in breaking the scheme with probability at most ct/2n
+for some fixed constant c. (This simply corresponds to a brute-force search of
+the key space.)
+Assuming c = 1 for simplicity, a key of length n = 64 provides adequate
+security against an adversary using a standard desktop computer. Indeed, on
+a 4 GHz processor with 16 cores that executes 4× 109 cycles per second per
+core, 264 CPU cycles require 264/(4 × 109 × 16) seconds, or about 9 years.
+(The above numbers are for illustrative purposes only; in practice c 6= 1, and
+several other factors—including the time required for accessing memory—can
+significantly affect the performance of brute-force attacks.)
+However, there is no reason to assume that an adversary is limited to a desk-
+top computer, and powerful adversaries are able to carry out computations
+orders of magnitude faster. Today, the minimum recommended key length is
+n = 128. The difference between 264 and 2128 is a multiplicative factor of 264.
+To get a feeling for how big this is, note that according to physicists’ estimates
+the number of seconds since the Big Bang is on the order of 258.
+If the probability that an attacker can successfully recover an encrypted
+message in one year is at most 2−60, then it is much more likely that the
+sender and receiver will both be hit by lightning in that time period than that
+the attacker will recover the message! Something that occurs with probability
+2−60 each second is expected to occur roughly once every 10 billion years. ♦
+The concrete approach is important in practice, since concrete guarantees
+are what users of a cryptographic scheme are ultimately interested in. How-
+ever, precise concrete guarantees are difficult to provide. Furthermore, one
+must be careful in interpreting concrete-security claims. For example, a claim
+that no adversary running for 5 years can break a given scheme with proba-
+bility better than ε begs the questions: what type of computing power (e.g.,
+desktop PC, supercomputer, network of hundreds of computers) does this as-
+sume? Does this take into account expected future advances in computing
+power (which, by Moore’s Law, roughly doubles every 18 months)? Does the
+estimate assume the use of “off-the-shelf” algorithms, or dedicated hardware
+optimized for the attack? Furthermore, such a guarantee says little about the
+success probability of an adversary running for 2 years (other than the fact
+that it can be at most ε) and says nothing about the success probability of
+an adversary running for 10 years.
+3.1.2 The Asymptotic Approach
+As partly noted above, there are some technical and theoretical difficulties
+in using the concrete-security approach. These issues must be dealt with in
+practice but when describing schemes abstractly (as we do in this book) it is
+convenient instead to use an asymptotic approach. This approach, rooted in
+complexity theory, introduces an integer-valued security parameter (denoted
+by n) that parameterizes both cryptographic schemes as well as all involved
+46 Introduction to Modern Cryptography
+parties (i.e., the honest parties as well as the attacker). When honest parties
+use a scheme (e.g., when they generate a key), they choose some value for
+the security parameter; for the purposes of this discussion, one can view the
+security parameter as corresponding to the length of the key. We also view the
+running time of the adversary, as well as its success probability, as functions
+of the security parameter rather than as fixed, concrete values. Then:
+1. We equate “efficient adversaries” with randomized (i.e., probabilistic)
+algorithms running in time polynomial in n. This means there is some
+polynomial p such that the adversary runs for time at most p(n) when
+the security parameter is n. We also require—for real-world efficiency—
+that honest parties run in polynomial time, although we stress that the
+adversary may be much more powerful (and run much longer) than the
+honest parties.
+2. We equate the notion of “small probabilities of success” with success
+probabilities smaller than any inverse polynomial in n. (See Defini-
+tion 3.4.) Such probabilities are called negligible.
+Let ppt stand for “probabilistic polynomial-time.” A definition of asymptotic
+security then takes the following general form:
+A scheme is secure if any ppt adversary succeeds in breaking the
+scheme with at most negligible probability.
+This notion of security is asymptotic since it depends on a scheme’s behavior
+for sufficiently large values of n. The following example illustrates this.
+Example 3.2
+Say we have a scheme that is asymptotically secure. Then it may be the
+case that an adversary running for n3 minutes can succeed in “breaking the
+scheme” with probability 240/2n (which is a negligible function of n). When
+n ≤ 40 this means that an adversary running for 403 minutes (about 6 weeks)
+can break the scheme with probability 1, so such values of n are not very
+useful. Even for n = 50 an adversary running for 503 minutes (about 3
+months) can break the scheme with probability roughly 1/1000, which may
+not be acceptable. On the other hand, when n = 500 an adversary running
+for 200 years breaks the scheme only with probability roughly 2−500. ♦
+As indicated by the previous example, we can view the security parameter as
+a mechanism that allows the honest parties to “tune” the security of a scheme
+to some desired level. (Increasing the security parameter also increases the
+time required to run the scheme, as well as the length of the key, so the
+honest parties will want to set the security parameter as small as possible
+subject to defending against the class of attacks they are concerned about.)
+Viewing the security parameter as the key length, this corresponds to the fact
+Private-Key Encryption 47
+that the time required for an exhaustive-search attack grows exponentially
+in the length of the key. The ability to “increase security” by increasing
+the security parameter has important practical ramifications, since it enables
+honest parties to defend against increases in computing power. The following
+example gives a sense of how this might play out in practice.
+Example 3.3
+Let us see the effect that the availability of faster computers might have on
+security in practice. Say we have a cryptographic scheme in which the honest
+parties run for 106 ·n2 cycles, and for which an adversary running for 108 ·n4
+cycles can succeed in “breaking” the scheme with probability at most 2−n/2.
+(The numbers are intended to make calculations easier, and are not meant to
+correspond to any existing cryptographic scheme.)
+Assume all parties are using 2 GHz computers and the honest parties set
+n = 80. Then the honest parties run for 106 · 6400 cycles, or 3.2 seconds, and
+an adversary running for 108 · (80)4 cycles, or roughly 3 weeks, can break the
+scheme with probability only 2−40.
+Say 8 GHz computers become available, and all parties upgrade. Honest
+parties can increase n to 160 (which requires generating a fresh key) and
+maintain a running time of 3.2 seconds (i.e., 106 · 1602 cycles at 8 · 109 cy-
+cles/second). In contrast, the adversary now has to run for over 8 million
+seconds, or more than 13 weeks, to achieve a success probability of 2−80. The
+effect of a faster computer has been to make the adversary’s job harder. ♦
+Even when using the asymptotic approach it is important to remember that
+when a cryptosystem is ultimately deployed a concrete security guarantee will
+be needed. (After all, some value of n must be chosen, and it is important to
+understand what level of security is being provided.) As the above examples
+indicate, however, an asymptotic security claim can typically be translated
+into a concrete security bound for any desired value of n.
+The Asymptotic Approach in Detail
+We now discuss more formally the notions of “polynomial-time algorithms”
+and “negligible success probabilities.”
+Efficient algorithms. A function f from the natural numbers to the non-
+negative real numbers is polynomially bounded (or simply polynomial) if there
+is a constant c such that f(n) < nc for all n. An algorithm A runs in polyno-
+mial time if there exists a polynomial p such that, for every input x ∈ {0, 1}∗,
+the computation of A(x) terminates within at most p(|x|) steps. (Here, |x|
+denotes the length of the string x.) As mentioned earlier, we equate efficient
+adversaries with those whose running time is polynomial in the security pa-
+rameter n. When it is necessary to explicitly indicate this, we provide the
+security parameter in unary (i.e., the string 1n consisting of n ones) as input
+48 Introduction to Modern Cryptography
+to an algorithm. An algorithm may take other inputs besides the security
+parameter—for example, a message to be encrypted—and in that case we
+allow its running time to be polynomial in the total length of its inputs.
+A technical advantage of working with polynomials is that they obey cer-
+tain closure properties. In particular, if p1, p2 are two polynomials, then the
+function p(n) = p1(p2(n)) is also polynomial.
+By default, we allow all algorithms to be probabilistic (i.e., randomized).
+Any such algorithm is assumed to have access to a sequence of unbiased,
+independent random bits. Equivalently, a randomized algorithm is given (in
+addition to its input) a uniformly distributed random tape of sufficient length
+whose bits it can use, as needed, throughout its execution.
+We consider randomized algorithms by default for two reasons. First, ran-
+domness is essential to cryptography (e.g., in order to choose random keys
+and so on) and so honest parties must be probabilistic; given this, it is nat-
+ural to allow adversaries to be probabilistic as well. Second, randomization
+is practical and—as far as we know—gives attackers additional power. Since
+our goal is to model all realistic attacks, we prefer a more liberal definition of
+efficient computation.
+Negligible success probability. A negligible function is one that is asymp-
+totically smaller than any inverse polynomial function. Formally:
+DEFINITION 3.4 A function f from the natural numbers to the non-
+negative real numbers is negligible if for every polynomial p there is an N
+such that for all n > N it holds that f(n) < 1
+p(n) .
+The above is equivalently stated as follows: for every polynomial p and all
+sufficiently large values of n it holds that f(n) < 1
+p(n) . Or, in other words,
+for all constants c there exists an N such that for all n > N it holds that
+f(n) < n−c. We typically denote an arbitrary negligible function by negl.
+Example 3.5
+The functions 2−n, 2−
+√
+n, and n− logn are all negligible. However, they ap-
+proach zero at very different rates. For example, we can look at the minimum
+value of n for which each function is smaller than 1/n5:
+1. Solving 2−n < n−5 we get n > 5 log n. The smallest integer value of
+n > 1 for which this holds is n = 23.
+2. Solving 2−
+√
+n < n−5 we get n > 25 log2 n. The smallest integer value of
+n > 1 for which this holds is n ≈ 3500.
+3. Solving n− logn < n−5 we get log n > 5. The smallest integer value of n
+for which this holds is n = 33.
+Private-Key Encryption 49
+From the above you may have the impression that n− logn is smaller than
+2−
+√
+n. However, this is incorrect; for all n > 65536 it holds that 2−
+√
+n <
+n− logn. Nevertheless, this does show that for values of n in the hundreds
+or thousands, an adversarial success probability of n− logn is preferable to an
+adversarial success probability of 2−
+√
+n. ♦
+A technical advantage of working with negligible success probabilities is
+that they obey certain closure properties. The following is an easy exercise.
+PROPOSITION 3.6 Let negl1 and negl2 be negligible functions. Then,
+1. The function negl3(n) = negl1(n) + negl2(n) is negligible.
+2. For any polynomial p, the function negl4(n) = p(n)·negl1(n) is negligible.
+The second part of the above proposition implies that if a certain event
+occurs with only negligible probability in some experiment, then the event
+occurs with negligible probability even if that experiment is repeated poly-
+nomially many times. (This relies on the union bound; see Proposition A.7.)
+For example, the probability that n fair coin flips all come up “heads” is 2−n,
+which is negligible. This means that even if we repeat the experiment of flip-
+ping n coins polynomially many times, the probability that even one of those
+experiments results in n heads is still negligible.
+A corollary of the second part of the above proposition is that if a function
+g is not negligible, then neither is the function f(n)
+def
+= g(n)/p(n) for any
+polynomial p.
+Asymptotic Security: A Summary
+Any security definition consists of two components: a definition of what is
+considered a “break” of the scheme, and a specification of the power of the
+adversary. The power of the adversary can relate to many issues (e.g., in the
+case of encryption, whether we assume a ciphertext-only attack or a chosen-
+plaintext attack). However, when it comes to the computational power of
+the adversary, we will from now on model the adversary as efficient and thus
+only consider adversarial strategies that can be implemented in probabilis-
+tic polynomial time. (The only exceptions are Section 4.6, where we revisit
+information-theoretic security, and Chapter 14, where we consider quantum
+polynomial-time attackers.) Definitions will also be formulated so that a break
+that occurs with negligible probability is not considered significant. Thus, the
+general framework of any security definition will be:
+A scheme is secure if for every probabilistic polynomial-time adver-
+sary A carrying out an attack (of some formally specified type),
+the probability that A succeeds in the attack (where success is
+also formally specified) is negligible.
+50 Introduction to Modern Cryptography
+Such a definition is asymptotic because it is possible that for small values of n
+an adversary can succeed with high probability. In order to see this more
+clearly, we expand the term “negligible” in the above statement:
+A scheme is secure if for every ppt adversary A carrying out an
+attack, and every polynomial p, there is an integer N such that
+when n > N the probability that A succeeds in the attack is less
+than 1
+p(n) .
+Note that nothing is guaranteed for values n ≤ N .
+On the Choices Made in Defining Asymptotic Security
+In defining the general notion of asymptotic security, we have made two
+choices: we have identified efficient adversarial strategies with the class of
+probabilistic polynomial-time algorithms, and have equated small chances of
+success with negligible probabilities. Both these choices are—to some extent—
+arbitrary, and one could build a perfectly reasonable theory by defining, say,
+efficient strategies as those running in time 2o(n), or small success probabilities
+as those bounded by 2−n. Nevertheless, we briefly justify the choices we have
+made (which are the standard ones).
+Those familiar with complexity theory or algorithms will recognize that the
+idea of equating efficient computation with (probabilistic) polynomial-time
+algorithms is not unique to cryptography. One advantage of using (prob-
+abilistic) polynomial time as our notion of efficiency is that this frees us
+from having to specify our model of computation precisely, since the extended
+Church–Turing thesis states that all “reasonable” models of computation are
+polynomially equivalent.1 Thus, we need not specify whether we use Turing
+machines, boolean circuits, or random-access machines; we can present algo-
+rithms in high-level pseudocode and be confident that if our analysis shows
+that an algorithm runs in polynomial time, then any reasonable implementa-
+tion of that algorithm will run in polynomial time.
+Another advantage of (probabilistic) polynomial-time algorithms is that
+they satisfy desirable closure properties: in particular, an algorithm that
+does only polynomial computation and makes polynomially many calls to
+polynomial-time subroutines will itself run in polynomial time.
+The most important feature of negligible probabilities is the closure prop-
+erty we have already seen in Proposition 3.6(2): a polynomial multiplied by
+a negligible function is still negligible. This means, in particular, that if a
+polynomial-time algorithm makes polynomially many calls to some subrou-
+tine that “fails” with negligible probability each time it is called, then the
+probability that any call to that subroutine fails is still negligible.
+1Note, however, that quantum computers may may give super-polynomial speedup (for
+some problems) relative to classical computers. We defer further discussion to Chapter 14.
+Private-Key Encryption 51
+Necessity of the Relaxations
+Computational secrecy introduces two relaxations of perfect secrecy: first,
+secrecy is guaranteed only against efficient adversaries; second, secrecy may
+“fail” with small probability. Both these relaxations are essential for achieving
+practical encryption schemes, and in particular for bypassing the negative
+results for perfectly secret encryption. We informally discuss why this is the
+case. Assume we have an encryption scheme where the size of the key space K
+is smaller than the size of the message space M. (As shown in the previous
+chapter, this means the scheme cannot be perfectly secret.) Two attacks apply
+regardless of how the encryption scheme is constructed:
+ Given a ciphertext c, an adversary can decrypt c using all keys k ∈ K.
+This gives a list of all the messages to which c can possibly correspond.
+Since this list cannot contain all ofM (because |K| < |M|), this attack
+leaks some information about the message that was encrypted.
+Moreover, say the adversary carries out a known-plaintext attack and
+learns that ciphertexts c1, . . . , c` correspond to the messages m1, . . . ,m`,
+respectively. The adversary can again try decrypting each of these ci-
+phertexts with all possible keys until it finds a key k for which Deck(ci) =
+mi for all i. Later, given a ciphertext c that is the encryption of an un-
+known message m, it is almost surely the case that Deck(c) = m.
+Brute-force attacks like the above allow an adversary to “succeed” with
+probability ≈ 1 in time O(|K|).
+ Consider again the case where the adversary learns that ciphertexts
+c1, . . . , c` correspond to messages m1, . . . ,m`. The adversary can guess
+a uniform key k ∈ K and check whether Deck(ci) = mi for all i. If so,
+then, as above, the attacker can use k to decrypt anything subsequently
+encrypted by the honest parties.
+Here the adversary runs in constant time and “succeeds” with nonzero
+probability 1/|K|.
+Nevertheless, by setting |K| large enough we can hope to achieve meaningful
+secrecy against attackers running in time much less than |K| (so the attacker
+does not have sufficient time to carry out a brute-force attack), except possibly
+with small probability on the order of 1/|K|.
+3.2 Defining Computationally Secure Encryption
+Given the background of the previous section, we are ready to present a
+definition of computational security for private-key encryption. First, we re-
+define the syntax of private-key encryption; this will be largely the same as
+52 Introduction to Modern Cryptography
+the syntax introduced in Chapter 2 except that we now explicitly take into
+account the security parameter n. We also make two other changes: we allow
+the decryption algorithm to output an error (e.g., in case it is presented with
+an invalid ciphertext), and let the message space be the set {0, 1}∗ of all
+(finite-length) binary strings by default.
+DEFINITION 3.7 A private-key encryption scheme consists of three prob-
+abilistic polynomial-time algorithms (Gen,Enc,Dec) such that:
+1. The key-generation algorithm Gen takes as input 1n (i.e., the security
+parameter written in unary) and outputs a key k; we write k ← Gen(1n)
+(emphasizing that Gen is a randomized algorithm). We assume without
+loss of generality that any key k output by Gen(1n) satisfies |k| ≥ n.
+2. The encryption algorithm Enc takes as input a key k and a plaintext
+message m ∈ {0, 1}∗, and outputs a ciphertext c. Since Enc may be
+randomized, we write this as c← Enck(m).
+3. The decryption algorithm Dec takes as input a key k and a ciphertext c,
+and outputs a message m ∈ {0, 1}∗ or an error. We denote a generic
+error by the symbol ⊥.
+It is required that for every n, every key k output by Gen(1n), and every
+m ∈ {0, 1}∗, it holds that Deck(Enck(m)) = m.
+If (Gen,Enc,Dec) is such that for k output by Gen(1n), algorithm Enck is
+only defined for messages m ∈ {0, 1}`(n), then we say that (Gen,Enc,Dec) is
+a fixed-length private-key encryption scheme for messages of length `(n).
+Almost always, Gen(1n) simply outputs a uniform n-bit string as the key.
+When this is the case, we omit Gen and define a private-key encryption scheme
+to be a pair of algorithms (Enc,Dec). Without significant loss of generality, we
+assume Dec is deterministic throughout this book, and so write m := Deck(c).
+The above definition considers stateless schemes, in which each invocation
+of Enc is independent of all prior invocations (and similarly for Dec). Later in
+this chapter, we will discuss stateful schemes in which parties may maintain
+local state that is updated after each invocation of Enc and/or Dec. We
+assume encryption schemes are stateless (as in the above definition) unless
+explicitly noted otherwise.
+3.2.1 The Basic Definition of Security (EAV-Security)
+We begin by presenting the most basic notion of computational security
+for private-key encryption: security against a ciphertext-only attack where
+the adversary observes only a single ciphertext or, equivalently, security when
+a given key is used to encrypt just a single message. We consider stronger
+definitions of security later.
+Private-Key Encryption 53
+Motivating the definition. As we have already discussed, any definition
+of security consists of two distinct components: a threat model (i.e., a speci-
+fication of the assumed power of the adversary) and a security goal (usually
+specified by describing what constitutes a “break” of the scheme). We begin
+our definitional treatment by considering the simplest threat model, where
+there is an eavesdropping adversary who observes the encryption of a sin-
+gle message. This is exactly the threat model we considered in the previous
+chapter. This only difference here is that, as explained in the previous section,
+we are now interested only in computationally bounded adversaries that are
+limited to running in polynomial time.
+Although we have made two assumptions about the adversary’s capabilities
+(namely, that it eavesdrops on one ciphertext, and that it runs in polynomial
+time), we make no assumptions whatsoever about the adversary’s strategy in
+trying to decipher the ciphertext it observes. This is crucial for obtaining
+meaningful notions of security: the definition ensures protection against any
+computationally bounded eavesdropper, regardless of the algorithm it uses.
+Correctly defining the security goal for encryption is not trivial, but we
+have already discussed this issue at length in Section 1.4.1 and in the previ-
+ous chapter. We therefore just recall that the idea behind the definition is
+that the adversary should be unable to learn any partial information about
+the plaintext from the ciphertext. The definition of semantic security (cf.
+Section 3.2.2) exactly formalizes this notion, and was the first definition of
+computationally secure encryption to be proposed. Semantic security is com-
+plex and difficult to work with. Fortunately, there is an equivalent definition
+called indistinguishability that is much simpler.
+The definition of indistinguishability is patterned on the alternative defi-
+nition of perfect secrecy given as Definition 2.6. (This serves as further jus-
+tification that the definition of indistinguishability is a good one.) Recall
+that Definition 2.6 considers an experiment PrivKeav
+A,Π in which an adversary
+A outputs two messages m0 and m1, and is then given an encryption of one
+of those messages using a randomly generated key. The definition states that
+a scheme Π is secure if no adversary A can determine which of the messages
+m0,m1 was encrypted with probability any different from 1/2 (which is the
+probability that A is correct if it just makes a random guess).
+Here, we keep the experiment PrivKeav
+A,Π almost exactly the same (except
+for some technical differences discussed below), but introduce two important
+modifications in the definition itself:
+1. We now consider only adversaries running in polynomial time, whereas
+Definition 2.6 considered even adversaries with unbounded running time.
+2. We now concede that the adversary might determine the encrypted mes-
+sage with probability negligibly better than 1/2.
+As discussed extensively in the previous section, the above relaxations consti-
+tute the core elements of computational security.
+54 Introduction to Modern Cryptography
+As for the other differences, the most prominent is that we now parame-
+terize the experiment by a security parameter n. The running time of the
+adversary A, as well as its success probability, are then both viewed as func-
+tions of n. We write PrivKeav
+A,Π(n) to denote the experiment being run with
+security parameter n, and write
+Pr[PrivKeav
+A,Π(n) = 1] (3.1)
+to denote the probability that the output of experiment PrivKeav
+A,Π(n) is 1.
+Note that with A,Π fixed, the expression in Equation (3.1) is a function of n.
+A second difference is that we now explicitly require the adversary to output
+two messages m0,m1 of equal length. (In Definition 2.6 this requirement is
+implicit if the message spaceM only contains messages of some fixed length,
+as is the case for the one-time pad encryption scheme.) This means that,
+by default, we do not require a secure encryption scheme to hide the length
+of the plaintext. We revisit this point at the end of this section; see also
+Exercises 3.2 and 3.3.
+Indistinguishability in the presence of an eavesdropper. We now give
+the formal definition, beginning with the experiment outlined above. The
+experiment is defined for a private-key encryption scheme Π = (Gen,Enc,Dec),
+an adversary A, and a value n for the security parameter:
+The adversarial indistinguishability experiment PrivKeav
+A,Π(n):
+1. The adversary A is given input 1n, and outputs a pair of
+messages m0,m1 with |m0| = |m1|.
+2. A key k is generated by running Gen(1n), and a uniform bit
+b ∈ {0, 1} is chosen. Ciphertext c ← Enck(mb) is computed
+and given to A. We refer to c as the challenge ciphertext.
+3. A outputs a bit b′.
+4. The output of the experiment is defined to be 1 if b′ = b, and
+0 otherwise. If PrivKeav
+A,Π(n) = 1, we say that A succeeds.
+There is no limitation on the lengths of m0 and m1, as long as they are the
+same. (Of course, if A runs in polynomial time, then m0 and m1 have length
+polynomial in n.) If Π is a fixed-length scheme for messages of length `(n),
+the above experiment is modified by requiring m0,m1 ∈ {0, 1}`(n).
+The fact that the adversary can only eavesdrop is implicit in the fact that
+the adversary is given only a (single) ciphertext, and does not have any further
+interaction with the sender or the receiver. (As we will see later, allowing
+additional interaction makes the adversary significantly stronger.)
+The definition of indistinguishability states that an encryption scheme is se-
+cure if no ppt adversary A succeeds in guessing which message was encrypted
+Private-Key Encryption 55
+in the above experiment with probability significantly better than random
+guessing (which is correct with probability 1/2):
+DEFINITION 3.8 A private-key encryption scheme Π = (Gen,Enc,Dec)
+has indistinguishable encryptions in the presence of an eavesdropper, or is EAV-
+secure, if for all probabilistic polynomial-time adversaries A there is a negli-
+gible function negl such that, for all n,
+Pr
+[
+PrivKeav
+A,Π(n) = 1
+]
+≤ 1
+2
++ negl(n).
+The probability above is taken over the randomness used by A and the ran-
+domness used in the experiment (for choosing the key and the bit b, as well as
+any randomness used by Enc).
+It should be clear that Definition 3.8 is weaker than Definition 2.6, which is
+equivalent to perfect secrecy. Thus, any perfectly secret encryption scheme is
+also EAV-secure. Our goal, therefore, is to show that there exist encryption
+schemes satisfying Definition 3.8 that can circumvent the limitations of perfect
+secrecy, and in particular for which the key is shorter than the message. (Note
+that this must be the case if the scheme can handle arbitrary length messages.)
+That is, we will show schemes that satisfy Definition 3.8 but cannot satisfy
+Definition 2.6.
+An equivalent formulation. Definition 3.8 requires that no ppt adver-
+sary can determine which of two messages was encrypted with probability
+significantly better than 1/2. An equivalent formulation is that every ppt
+adversary behaves the same whether it observes an encryption of m0 or of m1.
+Since A outputs a bit, “behaving the same” means it outputs 1 with almost
+the same probability in each case. To formalize this, define PrivKeav
+A,Π(n, b) as
+above except that the fixed bit b ∈ {0, 1} is used (rather than being chosen
+at random). Let outA(PrivKeav
+A,Π(n, b)) denote the output bit b′ of A in this
+experiment. The following states that the output distribution of A is not
+significantly affected by whether it is running in experiment PrivKeav
+A,Π(n, 0) or
+experiment PrivKeav
+A,Π(n, 1).
+DEFINITION 3.9 A private-key encryption scheme Π = (Gen,Enc,Dec)
+has indistinguishable encryptions in the presence of an eavesdropper if for all
+ppt adversaries A there is a negligible function negl such that∣∣∣Pr[outA(PrivKeav
+A,Π(n, 0)) = 1]− Pr[outA(PrivKeav
+A,Π(n, 1)) = 1]
+∣∣∣ ≤ negl(n).
+The fact that this is equivalent to Definition 3.8 is left as an exercise.
+On Revealing the Plaintext Length
+The default notion of secure encryption does not require the encryption
+scheme to hide the plaintext length and, in fact, all commonly used encryp-
+56 Introduction to Modern Cryptography
+tion schemes reveal the plaintext length (or a close approximation thereof).
+The main reason for this is that it is impossible to support arbitrary length
+messages while hiding all information about the plaintext length (cf. Exer-
+cise 3.2). In many cases this is inconsequential since the plaintext length is
+already public or is not sensitive. This is not always the case, however, and
+sometimes leaking the plaintext length is problematic. As examples:
+ Simple numeric/text data: Say the encryption scheme being used reveals
+the plaintext length exactly. Then encrypted salary information would
+reveal whether someone makes a 5-figure or a 6-figure salary. Similarly,
+encryption of “yes”/“no” responses would leak the answer exactly.
+ Auto-suggestions: Websites often include an “auto-complete” or “auto-
+suggestion” functionality by which the website suggests a list of poten-
+tial words or phrases based on partial information the user has already
+typed. The size of this list can reveal information about the letters the
+user has typed so far. (For example, the number of auto-completions
+returned for “th” is far greater than the number for “zo.”)
+ Database searches: Consider a user querying a database for all records
+matching some search term. The number of records returned can reveal
+a lot of information about what the user was searching for. This can be
+particularly damaging if the user is searching for medical information
+and the query reveals information about a disease the user has.
+ Compressed data: If the plaintext is compressed before being encrypted,
+then information about the plaintext might be revealed even if only
+fixed-length plaintext is being encrypted. For example, a short com-
+pressed plaintext would indicate that the original (uncompressed) plain-
+text has a lot of redundancy. If an adversary can control a portion of
+what gets encrypted, this vulnerability can enable an adversary to learn
+additional information about the rest of the plaintext; it has been shown
+possible to use an attack of exactly this sort (called the CRIME attack)
+to reveal secret session cookies from encrypted HTTPS traffic.
+When using encryption one should determine whether leaking the plaintext
+length is a concern and, if so, take steps to mitigate or prevent such leakage by
+padding all messages to some pre-determined length before encrypting them.
+3.2.2 *Semantic Security
+We motivated the definition of secure encryption by saying that it implies
+the inability of an adversary to learn any partial information about the plain-
+text from the ciphertext. At first glance, however, Definition 3.8 looks very
+different. As we have mentioned, though, that definition is equivalent to a
+definition called semantic security that formalizes exactly the notion we want.
+Private-Key Encryption 57
+We build up to that definition by first introducing two weaker notions and
+showing that they are implied by EAV-security.
+We begin by showing that EAV-security implies that ciphertexts leak no
+information about individual bits of the plaintext. Formally, we show that if
+an EAV-secure encryption scheme (Enc,Dec) (recall that if Gen is omitted, the
+key is a uniform n-bit string) is used to encrypt a uniform messagem ∈ {0, 1}`,
+then for any i it is infeasible for an attacker given the ciphertext to guess the
+ith bit of m (here denoted by mi) with probability much better than 1/2.
+THEOREM 3.10 Let Π = (Enc,Dec) be a fixed-length private-key encryp-
+tion scheme for messages of length ` that is EAV-secure. Then for all ppt
+adversaries A and i ∈ {1, . . . , `}, there is a negligible function negl such that
+Pr
+[
+A(1n,Enck(m)) = mi
+]
+≤ 1
+2
++ negl(n), (3.2)
+where the probability is taken over uniform m ∈ {0, 1}` and k ∈ {0, 1}n, the
+randomness of A, and the randomness of Enc.
+PROOF The idea behind the proof of this theorem is that if it were possible
+to determine the ith bit of m from Enck(m), then it would also be possible
+to distinguish between encryptions of messages m0 and m1 whose ith bits
+differ. We formalize this via a proof by reduction, in which we show how
+to use any efficient adversary A to construct an efficient adversary A′ such
+that if A violates Equation (3.2), then A′ violates EAV-security of Π. (See
+Section 3.3.2 for more discussion of proofs by reduction.) Since Π is EAV-
+secure, this implies that no such A can exist.
+Fix an arbitrary ppt adversary A and i ∈ {1, . . . , `}. Let I0 ⊂ {0, 1}` be
+the set of all strings whose ith bit is 0, and let I1 ⊂ {0, 1}` be the set of all
+strings whose ith bit is 1. We have
+Pr
+[
+A(1n,Enck(m)) = mi
+]
+=
+1
+2
+· Pr
+m0←I0
+[A(1n,Enck(m0)) = 0] +
+1
+2
+· Pr
+m1←I1
+[A(1n,Enck(m1)) = 1] .
+Construct the following eavesdropping adversary A′:
+Adversary A′(1n):
+1. Choose uniform m0 ∈ I0 and m1 ∈ I1. Output m0,m1.
+2. Upon observing a ciphertext c, invoke A(1n, c). If A outputs
+0, output b′ = 0; otherwise, output b′ = 1.
+Note that A′ runs in polynomial time since A does.
+58 Introduction to Modern Cryptography
+By the definition of experiment PrivKeav
+A′,Π(n), we have that A′ succeeds if
+and only if A outputs b upon receiving Enck(mb). So
+Pr
+[
+PrivKeav
+A′,Π(n) = 1
+]
+= Pr [A(1n,Enck(mb)) = b]
+=
+1
+2
+· Pr
+m0←I0
+[A(1n,Enck(m0)) = 0] +
+1
+2
+· Pr
+m1←I1
+[A(1n,Enck(m1)) = 1]
+= Pr
+[
+A(1n,Enck(m)) = mi
+]
+.
+Since (Enc,Dec) is EAV-secure, there is a negligible function negl such that
+Pr
+[
+PrivKeav
+A′,Π(n) = 1
+]
+≤ 1
+2 + negl(n). We conclude that
+Pr
+[
+A(1n,Enck(m)) = mi
+]
+≤ 1
+2
++ negl(n),
+completing the proof.
+We next argue that EAV-security implies that no ppt adversary can learn
+any function f of the plaintext m from the ciphertext, regardless of the distri-
+bution D of m. This requirement is not trivial to define formally, because it
+needs to distinguish information that the attacker knows about the message
+due to D from information the attacker learns about the message from the
+ciphertext. (For example, if D is only over messages for which f evaluates
+to 1, then it is easy for an attacker to determine f(m). But in this case
+the attacker is not learning f(m) from the ciphertext.) This is taken into
+account in the definition by requiring that if there exists an adversary who,
+with some probability, correctly computes f(m) when given Enck(m), then
+there exists an adversary that can correctly compute f(m) with almost the
+same probability without being given the ciphertext at all (and knowing only
+the distribution D of m).
+THEOREM 3.11 Let (Enc,Dec) be a fixed-length private-key encryption
+scheme for messages of length ` that is EAV-secure. Then for any ppt al-
+gorithm A there is a ppt algorithm A′ such that for any distribution D over
+{0, 1}` and any function f : {0, 1}` → {0, 1}, there is a negligible function negl
+such that:∣∣∣Pr [A(1n,Enck(m)) = f(m)]− Pr [A′(1n) = f(m)]
+∣∣∣ ≤ negl(n),
+where the first probability is taken over choice of m according to D, uniform
+choice of k ∈ {0, 1}n, and the randomness of A and Enc, and the second
+probability is taken over choice of m according to D and the randomness of A′.
+PROOF (Sketch) The fact that (Enc,Dec) is EAV-secure means that, for
+any D, no ppt adversary can distinguish between Enck(m) for m chosen ac-
+cording to D, and Enck(1`) (i.e., an encryption of the all-1 string). (We leave
+Private-Key Encryption 59
+a proof of this claim to the reader.) Consider now the probability that A suc-
+cessfully computes f(m) given Enck(m). We claim that A should successfully
+compute f(m) given Enck(1`) with almost the same probability; otherwise,
+A could be used to distinguish between Enck(m) and Enck(1`). The distin-
+guisher is easily constructed: choose m according to D, and output m0 = m,
+m1 = 1`. When given a ciphertext c that is an encryption of either m0 or
+m1, invoke A(1n, c) and output 0 if and only if A outputs f(m). If A outputs
+f(m) when given an encryption of m with probability that is significantly
+different from the probability that it outputs f(m) when given an encryption
+of 1`, then the described distinguisher violates Definition 3.9.
+The above suggests the following algorithm A′ that does not receive an
+encryption of m, yet computes f(m) almost as well as A does: A′(1n) chooses
+a uniform key k ∈ {0, 1}n, invokes A on c← Enck(1`), and outputs whatever
+A does. By the above, we have that A outputs f(m) when run as a subroutine
+by A′ with almost the same probability as when it receives Enck(m). Thus,
+A′ fulfills the property required by the theorem.
+Semantic security. The full definition of semantic security guarantees con-
+siderably more than what is considered in Theorem 3.11. The definition al-
+lows arbitrary (efficiently sampleable) distributions over messages, generated
+by some polynomial-time sampling algorithm Samp. The definition also takes
+into account arbitrary “external” information h(m) about the message m that
+may be available to the adversary via other means (e.g., because the message
+is used for some other purpose as well). It also allows messages of varying
+lengths, although—as discussed at the end of the previous section—it assumes
+the message length is revealed.
+DEFINITION 3.12 A private-key encryption scheme (Enc,Dec) is seman-
+tically secure in the presence of an eavesdropper if for every ppt algorithm A
+there exists a ppt algorithm A′ such that for any ppt algorithm Samp and
+polynomial-time computable functions f and h, the following is negligible:∣∣∣Pr[A(1n,Enck(m), h(m)) = f(m)]− Pr[A′(1n, |m|, h(m)) = f(m)]
+∣∣∣ ,
+where the first probability is taken over m output by Samp(1n), uniform choice
+of k ∈ {0, 1}n, and the randomness of Enc and A, and the second probability
+is taken over m output by Samp(1n) and the randomness of A′.
+The adversary A is given the ciphertext Enck(m) as well as the external
+information h(m), and attempts to guess the value of f(m). Algorithm A′
+also attempts to guess the value of f(m), but is given only the length of m
+and h(m). The security requirement states that A’s probability of correctly
+guessing f(m) is about the same as that of A′. Intuitively, then, this means
+60 Introduction to Modern Cryptography
+that the ciphertext Enck(m) does not reveal any information about f(m)
+except for |m|.
+Definition 3.12 is a very strong and convincing formulation of the security
+guarantees that should be provided by an encryption scheme. Definition 3.8
+is much easier to work with. Fortunately, the definitions are equivalent :
+THEOREM 3.13 A private-key encryption scheme has indistinguishable
+encryptions in the presence of an eavesdropper (i.e., is EAV-secure) if and
+only if it is semantically secure in the presence of an eavesdropper.
+Looking ahead, a similar equivalence to a “semantic security”-based defini-
+tion is known for all the definitions we present in this chapter and Chapter 5.
+We can therefore use a simpler notion as our working definition, while being
+assured that it implies the strong guarantees of semantic security.
+3.3 Constructing an EAV-Secure Encryption Scheme
+Having defined what it means for an encryption scheme to be secure, the
+reader may expect us to turn immediately to constructions of secure encryp-
+tion schemes. Before doing so, however, we need to introduce the notion of
+pseudorandom generators (PRGs), which are important building blocks for
+private-key encryption. This, in turn, will lead to a discussion of pseudo-
+randomness, which plays a fundamental role in cryptography in general and
+private-key encryption in particular.
+3.3.1 Pseudorandom Generators
+A pseudorandom generator G is an efficient, deterministic algorithm for
+transforming a short, uniform string (called a seed) into a longer, “uniform-
+looking” (or “pseudorandom”) output string. Stated differently, a pseudoran-
+dom generator uses a small amount of true randomness in order to generate a
+large amount of pseudorandomness. This is useful whenever a large number of
+random(-looking) bits are needed, since generating true random bits is often
+difficult and slow. (See the discussion at the beginning of Chapter 2.) Pseu-
+dorandom generators have been studied since at least the 1940s when they
+were used for running statistical simulations. In that context, researchers pro-
+posed various statistical tests that a pseudorandom generator should pass in
+order to be considered “good.” As a simple example, one could require that
+the first bit of the output of a pseudorandom generator should be equal to 1
+with probability very close to 1/2 (where the probability is taken over uniform
+choice of the seed), since the first bit of a uniform string is equal to 1 with
+Private-Key Encryption 61
+probability exactly 1/2. As another example, the parity of any fixed subset
+of the output bits should also be 1 with probability very close to 1/2. More
+complex statistical tests can also be considered.
+This historical approach to determining the quality of some candidate pseu-
+dorandom generator is unsatisfying, as it is not clear when passing some set
+of statistical tests is sufficient to guarantee the soundness of using a candidate
+pseudorandom generator for some application. (In particular, there may be
+another statistical test that does successfully distinguish the output of the
+generator from true random bits.) The historical approach is even more prob-
+lematic when using pseudorandom generators for cryptographic applications;
+there, security may be compromised if any attacker is able to distinguish the
+output of a pseudorandom generator from uniform, and we do not know in
+advance what strategy an attacker might use.
+The above considerations motivated a cryptographic approach to defining
+pseudorandom generators in the 1980s. The basic realization was that a good
+pseudorandom generator should pass all (efficient) statistical tests. That is,
+for any efficient statistical test (or distinguisher) D, the probability that D
+returns 1 when given the output of the pseudorandom generator should be
+close to the probability that D returns 1 when given a uniform string of the
+same length. Informally, then, this means the output of a pseudorandom
+generator “looks like” a uniformly generated string to any efficient observer.
+We begin by defining what it means for a distribution to be pseudorandom.
+Let Dist be a distribution on `-bit strings. (This means that Dist assigns
+some probability to every string in {0, 1}`; sampling from Dist means that we
+choose an `-bit string according to this probability distribution.) Informally,
+Dist is pseudorandom if the experiment in which a string is sampled from
+Dist is indistinguishable from the experiment in which a uniform string of
+length ` is sampled. (Strictly speaking, since we are in an asymptotic setting
+we need to speak of the pseudorandomness of a sequence of distributions
+Dist = {Distn}, where distribution Distn is used for security parameter n.
+We ignore this point in our current discussion.) More precisely, it should
+be infeasible for any polynomial-time algorithm to determine (better than
+guessing) whether it is given a string sampled according to Dist, or whether
+it is given a uniform `-bit string. This means that a pseudorandom string is
+just as good as a uniform string, as long as we consider only polynomial-time
+observers. We stress that it does not make sense to say that any fixed string is
+“pseudorandom,” in the same way that it is meaningless to refer to any fixed
+string as “uniform.” Rather, pseudorandomness is a property of a distribution
+on strings. (Nevertheless, we sometimes informally call a string output by a
+pseudorandom generator a “pseudorandom string” in the same way we might
+say that a string sampled according to the uniform distribution is a “uniform
+string.”) Just as indistinguishability is a computational relaxation of perfect
+secrecy, pseudorandomness is a computational relaxation of true randomness.
+Let G be an efficiently computable function that maps strings of length n
+to outputs of length `(n) > n, and define Distn to be the distribution on `(n)-
+62 Introduction to Modern Cryptography
+bit strings obtained by choosing a uniform s ∈ {0, 1}n and outputting G(s).
+Then G is a pseudorandom generator if and only if the distribution Distn
+(technically, the sequence of distributions {Distn}) is pseudorandom.
+The formal definition. As discussed above, G is a pseudorandom generator
+if no efficient distinguisher can detect whether it is given a string output by G
+or a string chosen uniformly at random. As in Definition 3.9, this is formalized
+by requiring that every efficient algorithm outputs 1 with almost the same
+probability when given G(s) (for uniform seed s) or a uniform string. (For an
+equivalent definition analogous to Definition 3.8, see Exercise 3.7.) We obtain
+a definition in the asymptotic setting by letting the security parameter n
+determine the length of the seed, and insisting that G be computable by an
+efficient algorithm. As a technicality, we also require that G’s output be longer
+than its input; otherwise, G is not very useful or interesting.
+DEFINITION 3.14 Let G be a deterministic polynomial-time algorithm
+such that for any n and any input s ∈ {0, 1}n, the result G(s) is a string of
+length `(n). G is a pseudorandom generator if the following conditions hold:
+1. (Expansion.) For every n it holds that `(n) > n.
+2. (Pseudorandomness.) For any ppt algorithm D, there is a negligible
+function negl such that∣∣Pr[D(G(s)) = 1]− Pr[D(r) = 1]
+∣∣ ≤ negl(n),
+where the first probability is taken over uniform choice of s ∈ {0, 1}n and
+the randomness of D, and the second probability is taken over uniform
+choice of r ∈ {0, 1}`(n) and the randomness of D.
+We call `(n) the expansion factor of G.
+We give an example of an insecure pseudorandom generator to gain famil-
+iarity with the definition.
+Example 3.15
+Define G(s) to output s followed by ⊕ni=1si (i.e., the XOR of all the bits of s),
+so the expansion factor of G is `(n) = n+ 1. The output of G can be distin-
+guished easily from uniform. Consider the following efficient distinguisher D:
+on input a string w, output 1 if and only if the final bit of w is equal to the
+XOR of all the preceding bits of w. Since this holds for all strings output
+by G, we have Pr[D(G(s)) = 1] = 1. On the other hand, if r is uniform, the
+final bit of r is uniform and so Pr[D(r) = 1] = 1
+2 . The quantity | 12 − 1| is
+constant, not negligible, and so G is not a pseudorandom generator. (Note
+that D is not always “correct,” since it sometimes outputs 1 even when given
+a uniform string. But D is still a good distinguisher.) ♦
+Private-Key Encryption 63
+Discussion. The distribution of the output of a pseudorandom generator G
+is far from uniform. To see this, consider the case that `(n) = 2n and so G
+doubles the length of its input. Under the uniform distribution on {0, 1}2n,
+each of the 22n possible strings is chosen with probability exactly 2−2n. In
+contrast, consider the distribution of the output of G when it is run on a
+uniform n-bit seed. The number of different strings in the range of G is at
+most 2n. The fraction of strings of length 2n that are in the range of G is
+thus at most 2n/22n = 2−n, and we see that the vast majority of strings of
+length 2n have probability 0 of being output by G.
+This in particular means that it is trivial to distinguish between a random
+string and a pseudorandom string given an unlimited amount of time. Let
+G be as above and consider the exponential-time distinguisher D that works
+as follows: D(w) outputs 1 if and only if there exists an s ∈ {0, 1}n such
+that G(s) = w. (This computation is carried out in exponential time by
+exhaustively computing G(s) for every s ∈ {0, 1}n. Recall that by Kerckhoffs’
+principle, the specification of G is known to D.) Now, if w were output by G,
+then D outputs 1 with probability 1. In contrast, if w is uniformly distributed
+in {0, 1}2n, then the probability that there exists an s with G(s) = w is at
+most 2−n, and so D outputs 1 in this case with probability at most 2−n. So∣∣Pr[D(r) = 1]− Pr[D(G(s)) = 1]
+∣∣ ≥ 1− 2−n,
+which is large. This is just another example of a brute-force attack, and does
+not contradict the pseudorandomness of G since the attack is not efficient.
+The seed and its length. The seed for a pseudorandom generator is anal-
+ogous to the key used by an encryption scheme, and—just as in the case of
+a cryptographic key—the seed s must be chosen uniformly and be kept se-
+cret from any adversary if we want G(s) to look random. Another important
+point, evident from the above discussion of brute-force attacks, is that s must
+be long enough so that it is not feasible to enumerate all possible seeds. In an
+asymptotic sense this is taken care of by setting the length of the seed equal
+to the security parameter, so exhaustive search over all possible seeds requires
+exponential time. In practice, the seed length n must at least be large enough
+so that a brute-force attack running in time 2n is infeasible.
+On the existence of pseudorandom generators. Do pseudorandom gen-
+erators exist? They certainly seem difficult to construct, and one may rightly
+ask whether any algorithm G satisfies Definition 3.14. Although we do not
+know how to unconditionally prove the existence of pseudorandom generators,
+we have strong reasons to believe they exist for any (polynomial) expansion
+factor. For one, they can be constructed under the rather weak assumption
+that one-way functions exist (which is true if certain problems like factoring
+are hard); this is discussed in detail in Chapter 8. We also have several practi-
+cal constructions of candidate pseudorandom generators called stream ciphers
+for which no efficient distinguishers are known; see Section 3.6.1 for details
+64 Introduction to Modern Cryptography
+and Section 7.1 for concrete examples. In this chapter, we simply assume
+pseudorandom generators exist for any polynomial expansion factor, and ex-
+plore how they can be used to build secure encryption schemes. Doing so in
+a sound way relies on the idea of proofs by reduction, which we describe next.
+3.3.2 Proofs by Reduction
+If we wish to prove that a given construction (e.g., encryption scheme) is
+computationally secure, then—unless the scheme is information-theoretically
+secure—we must rely on unproven assumptions. Our strategy will be to as-
+sume that some mathematical problem is hard, or that some low-level cryp-
+tographic primitive is secure, and then to prove that the given construction
+based on that problem/primitive is secure as long as our initial assumption
+is correct. In Section 1.4.2 we have already explained in great detail the
+advantages of this approach, so we do not repeat those arguments here.
+A proof that some cryptographic construction Π is secure as long as some
+underlying problem X is hard generally proceeds by presenting an explicit
+reduction showing how to transform any efficient adversary A that succeeds
+in “breaking” Π into an efficient algorithm A′ that solves X. Since this is so
+important, we walk through a high-level outline of the steps of such a proof in
+detail. (We will see numerous concrete examples throughout the book, begin-
+ning with the proof of Theorem 3.16 in the next section.) We start with the
+assumption that some problem X cannot be solved (in some precisely defined
+sense) by any polynomial-time algorithm, except with negligible probabil-
+ity. We then want to prove that some cryptographic construction Π is secure
+(again, in some sense that is precisely defined). A proof by reduction proceeds
+via the following steps (see also Figure 3.1):
+1. Fix some efficient (i.e., probabilistic polynomial-time) adversary A at-
+tacking Π. Denote this adversary’s success probability by ε(n).
+2. Construct an efficient algorithm A′ that attempts to solve problem X by
+using adversary A as a subroutine. An important point here is that A′
+knows nothing about how A works; the only thing A′ knows is that A
+is expecting to attack Π. So, given some input instance x of problem X,
+our algorithm A′ will simulate for A an instance of Π such that:
+(a) As far as A can tell, it is interacting with Π. That is, the view of A
+when run as a subroutine by A′ should be distributed identically to
+(or at least close to) the view of A when it interacts with Π itself.
+(b) When A succeeds in “breaking” the instance of Π that is being
+simulated by A′, this should allow A′ to solve the instance x it was
+given, at least with inverse polynomial probability 1/p(n).
+I.e., we attempt to reduce the problem of solving X to the problem of
+breaking Π.
+Private-Key Encryption 65
+FIGURE 3.1: A high-level overview of a proof by reduction.
+3. Taken together, the above imply that A′ solves X with probability
+ε(n)/p(n). Now, if ε(n) is not negligible then neither is ε(n)/p(n). More-
+over, if A is efficient then we obtain an efficient algorithm A′ solving X
+with non-negligible probability, contradicting our initial assumption.
+4. Given our assumption regarding X, we conclude that no efficient ad-
+versary A can succeed in breaking Π with non-negligible probability.
+Stated differently, Π is computationally secure.
+As an illustration of the above idea, we show in the following section how
+to use a pseudorandom generator G to construct an encryption scheme, and
+we prove the encryption scheme secure by showing that any attacker who
+can “break” the encryption scheme can be used to distinguish the output
+of G from a uniform string. Under the assumption that G is a pseudorandom
+generator, then, the encryption scheme is secure.
+3.3.3 EAV-Security from a Pseudorandom Generator
+A pseudorandom generator provides a natural way to construct a secure,
+fixed-length encryption scheme with a key shorter than the message. Recall
+that in the one-time pad (see Section 2.2), encryption is done by XORing
+a random pad with the message. The crucial insight is that we can use a
+pseudorandom pad instead. Rather than sharing this long, pseudorandom
+pad, however, the sender and receiver can instead share a uniform seed that is
+used to generate the pad when needed (see Figure 3.2); this seed will be shorter
+than the pad and hence shorter than the message. As for security, the intu-
+ition is that a pseudorandom string “looks random” to any polynomial-time
+adversary and so a computationally bounded eavesdropper cannot distinguish
+between a message encrypted using the one-time pad or a message encrypted
+using this “pseudo-”one-time pad encryption scheme.
+66 Introduction to Modern Cryptography
+FIGURE 3.2: Encryption with a pseudorandom generator.
+The encryption scheme. Fix some message length `(n) and let G be a pseu-
+dorandom generator with expansion factor `(n) (that is, |G(s)| = `(|s|)). Re-
+call that an encryption scheme is defined by three algorithms: a key-generation
+algorithm Gen, an encryption algorithm Enc, and a decryption algorithm Dec.
+The key-generation algorithm is the trivial one: Gen(1n) simply outputs a
+uniform key k ∈ {0, 1}n. Encryption works by applying G to the key (which
+serves as a seed) in order to obtain a pad that is then XORed with the plain-
+text. Decryption applies G to the key and XORs the resulting pad with the
+ciphertext to recover the message. The scheme is described formally in Con-
+struction 3.17. In Section 3.6.2, we describe how stream ciphers are used to
+implement a variant of this scheme in practice.
+THEOREM 3.16 If G is a pseudorandom generator, then Construc-
+tion 3.17 is an EAV-secure, fixed-length private-key encryption scheme for
+messages of length `(n).
+PROOF Let Π denote Construction 3.17. We show that Π satisfies Defini-
+tion 3.8 (under the assumption that G is a pseudorandom generator). Namely,
+we show that for any probabilistic polynomial-time adversary A there is a neg-
+ligible function negl such that
+Pr
+[
+PrivKeav
+A,Π(n) = 1
+]
+≤ 1
+2
++ negl(n). (3.3)
+The intuition is that if Π used a uniform pad in place of the pseudorandom
+pad G(k), then the resulting scheme would be identical to the one-time pad
+encryption scheme and A would be unable to correctly guess which message
+was encrypted with probability any better than 1/2. Thus, if Equation (3.3)
+Private-Key Encryption 67
+CONSTRUCTION 3.17
+Let G be a pseudorandom generator with expansion factor `(n). Define
+a fixed-length private-key encryption scheme for messages of length `(n)
+as follows:
+ Gen: on input 1n, choose uniform k ∈ {0, 1}n and output it as
+the key.
+ Enc: on input a key k ∈ {0, 1}n and a message m ∈ {0, 1}`(n),
+output the ciphertext
+c := G(k)⊕m.
+ Dec: on input a key k ∈ {0, 1}n and a ciphertext c ∈ {0, 1}`(n),
+output the message
+m := G(k)⊕ c.
+A private-key encryption scheme based on any pseudorandom generator.
+does not hold then A must implicitly be distinguishing the output of G from
+a random string. We make this explicit by showing a reduction; namely,
+by showing how to use A to construct an efficient distinguisher D, with the
+property that D’s ability to distinguish the output of G from a uniform string
+is directly related to A’s ability to determine which message was encrypted
+by Π. Security of G then implies security of Π.
+Let A be an arbitrary ppt adversary. We construct a distinguisher D that
+takes a string w as input, and whose goal is to determine whether w was
+chosen uniformly (i.e., w is a “random string”) or whether w was generated
+by choosing a uniform k and computing w := G(k) (i.e., w is a “pseudorandom
+string”). We construct D so that it emulates the eavesdropping experiment
+for A, as described below, and observes whether A succeeds or not. If A
+succeeds then D guesses that w must be a pseudorandom string, while if A
+does not succeed then D guesses that w is a random string. In detail:
+Distinguisher D:
+D is given as input a string w ∈ {0, 1}`(n). (We assume that n can
+be determined from `(n).)
+1. Run A(1n) to obtain a pair of messages m0,m1 ∈ {0, 1}`(n).
+2. Choose a uniform bit b ∈ {0, 1}. Set c := w ⊕mb.
+3. Give c to A and obtain output b′. Output 1 if b′ = b, and
+output 0 otherwise.
+D clearly runs in polynomial time (assuming A does).
+Before analyzing the behavior of D, we define a modified encryption scheme
+Π̃ = (G̃en, Ẽnc, D̃ec) that is exactly the one-time pad encryption scheme, ex-
+cept that we now incorporate a security parameter that determines the length
+of the message to be encrypted. That is, G̃en(1n) outputs a uniform key
+k of length `(n), and the encryption of message m ∈ {0, 1}`(n) using key
+68 Introduction to Modern Cryptography
+k ∈ {0, 1}`(n) is the ciphertext c := k⊕m. (Decryption can be done as usual,
+but is inessential to what follows.) Perfect secrecy of the one-time pad implies
+Pr
+[
+PrivKeav
+A,Π̃(n) = 1
+]
+=
+1
+2
+. (3.4)
+To analyze the behavior of D, the main observations are:
+1. If w is chosen uniformly from {0, 1}`(n), then the view ofA when run as a
+subroutine by D is distributed identically to the view of A in experiment
+PrivKeav
+A,Π̃(n). This is because when A is run as a subroutine by D(w) in
+this case, A is given a ciphertext c = w⊕mb where w ∈ {0, 1}`(n) is uni-
+form. Since D outputs 1 exactly when A succeeds in its eavesdropping
+experiment, we therefore have (using Equation (3.4))
+Prw←{0,1}`(n) [D(w) = 1] = Pr
+[
+PrivKeav
+A,Π̃(n) = 1
+]
+=
+1
+2
+. (3.5)
+(The subscript on the first probability just makes explicit that w is
+chosen uniformly from {0, 1}`(n) there.)
+2. If w is instead generated by choosing uniform k ∈ {0, 1}n and then
+setting w := G(k), the view of A when run as a subroutine by D is
+distributed identically to the view of A in experiment PrivKeav
+A,Π(n). This
+is because A, when run as a subroutine by D, is now given a ciphertext
+c = w ⊕mb where w = G(k) for a uniform k ∈ {0, 1}n. Thus,
+Prk←{0,1}n [D(G(k)) = 1] = Pr
+[
+PrivKeav
+A,Π(n) = 1
+]
+. (3.6)
+Since G is a pseudorandom generator (and since D runs in polynomial time),
+we know there is a negligible function negl such that∣∣∣Prk←{0,1}n [D(G(k)) = 1]− Prw←{0,1}`(n) [D(w) = 1]
+∣∣∣ ≤ negl(n).
+Using Equations (3.5) and (3.6), we thus see that∣∣∣∣ Pr
+[
+PrivKeav
+A,Π(n) = 1
+]
+− 1
+2
+∣∣∣∣ ≤ negl(n),
+which implies Pr
+[
+PrivKeav
+A,Π(n) = 1
+]
+≤ 1
+2 + negl(n). Since A was an arbitrary
+ppt adversary, this completes the proof that Π is EAV-secure.
+It is easy to get lost in the details of the proof and wonder whether anything
+has been gained as compared to the one-time pad; after all, the one-time pad
+also encrypts an `-bit message by XORing it with an `-bit string! The point
+of the construction, of course, is that the shared key k can be much shorter
+than the `-bit string G(k). In particular, using the above scheme it may be
+Private-Key Encryption 69
+possible to securely encrypt a 1 Mb file using only a 128-bit key. By relying on
+computational secrecy we have thus circumvented the impossibility result of
+Theorem 2.11, which states that any perfectly secret encryption scheme must
+use a key at least as long as the message.
+Reductions—a discussion. We do not prove unconditionally that Con-
+struction 3.17 is secure. Rather, we prove that it is secure under the assump-
+tion that G is a pseudorandom generator. This approach of reducing the
+security of a higher-level construction to a lower-level primitive has a number
+of advantages (as discussed in Section 1.4.2). One of these advantages is that,
+in general, it is easier to design a lower-level primitive than a higher-level one;
+it is also easier, in general, to directly analyze an algorithm G with respect
+to a lower-level definition than to analyze a more complex scheme Π with
+respect to a higher-level definition. This does not mean that constructing a
+pseudorandom generator is “easy,” only that it is easier than constructing an
+encryption scheme from scratch. (In the present case the encryption scheme
+does nothing except XOR the output of a pseudorandom generator with the
+message and so this isn’t quite true. Soon, however, we will see more complex
+constructions and in those cases the ability to reduce the task to a simpler
+one is very useful.) Another advantage is that the construction can be instan-
+tiated with any pseudorandom generator G, providing some flexibility to the
+users of the scheme.
+Concrete security. Although Theorem 3.16 and its proof are in an asymp-
+totic setting, we can readily adapt the proof to bound the concrete security
+of the encryption scheme in terms of the concrete security of G. Fix some
+value of n for the remainder of this discussion, and let Π now denote Con-
+struction 3.17 using this value of n. Assume G is (t, ε)-pseudorandom (for the
+given value of n), in the sense that for all distinguishers D running in time at
+most t we have ∣∣Pr[D(G(s)) = 1]− Pr[D(r) = 1]
+∣∣ ≤ ε. (3.7)
+(Think of t ≈ 280 CPU cycles and ε ≈ 2−60, though precise values are irrele-
+vant for our discussion.) We claim that Π is (t− t′, ε)-secure for some (small)
+constant t′, in the sense that for all A running in time at most t− t′ we have
+Pr
+[
+PrivKeav
+A,Π = 1
+]
+≤ 1
+2
++ ε. (3.8)
+(Note that the above are now fixed numbers, not functions of n, since we
+have fixed n and are no longer in an asymptotic setting.) To see this, let A
+be an arbitrary adversary running in time at most t − t′. Distinguisher D,
+as constructed in the proof of Theorem 3.16, has very little overhead besides
+running A; setting t′ appropriately ensures that D runs in time at most t.
+Our assumption on the concrete security of G then implies Equation (3.7);
+proceeding exactly as in the proof of Theorem 3.16, we obtain Equation (3.8).
